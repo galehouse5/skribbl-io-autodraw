@@ -1,0 +1,21 @@
+{
+    "manifest_version": 2,
+    "name": "Skribbl.io AutoDraw",
+    "version": "0.1.0",
+    "icons": {
+        "42": "icon42.png"
+    },
+    "content_scripts": [
+        {
+            "matches": ["https://skribbl.io/*"],
+            "css": ["main.css"],
+            "js": [
+                "image-helper.js",
+                "canvas.js",
+                "toolbar.js",
+                "artist.js",
+                "main.js"
+            ]
+        }
+    ]
+}
