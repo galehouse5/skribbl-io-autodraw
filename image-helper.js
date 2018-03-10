@@ -63,12 +63,12 @@ let createImageHelper = function (image) {
 
     return {
         fillImageData: function (size, backgroundColor) {
-            log(`Normalizing image to ${size.width} x ${size.height}px using fill transform...`);
+            log(`Normalizing image to ${size.width} x ${size.height} using fill transform...`);
             return normalizeImageData(fill, size, backgroundColor);
         },
 
         fitImageData: function (size, backgroundColor) {
-            log(`Normalizing image to ${size.width} x ${size.height}px using fit transform...`);
+            log(`Normalizing image to ${size.width} x ${size.height} using fit transform...`);
             return normalizeImageData(fit, size, backgroundColor);
         }
     };
