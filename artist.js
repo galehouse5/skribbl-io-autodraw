@@ -1,28 +1,4 @@
-let createArtist = function (canvas, toolbar) {	
-    // Taken from: https://www.compuphase.com/cmetric.htm
-    let getColorDistance = function (color1, color2) {
-        let rmean = (color1.r + color2.r) / 2;
-        let r = color1.r - color2.r;
-        let g = color1.g - color2.g;
-        let b = color1.b - color2.b;
-        return Math.sqrt((((512 + rmean) * r * r) >> 8) + 4 * g * g + (((767 - rmean) * b * b) >> 8));
-    };
-    
-    let getClosestToolbarColor = function (target) {
-        let minDistance = Number.MAX_VALUE;
-        let closestColor = null;
-
-        for (let color of toolbar.getColors()) {
-            let distance = getColorDistance(target, color);
-            if (distance >= minDistance) continue;
-            
-            minDistance = distance;
-            closestColor = color;
-        }
-
-        return closestColor;
-    };
-
+let createArtist = function (canvas, toolbar, colorHelper) {
     let drawLine = function (imageData, diameter, iterator) {
         let commands = [];
         let lineColor = null;
@@ -37,9 +13,9 @@ let createArtist = function (canvas, toolbar) {
                 toolbar.setPenTool();
                 toolbar.setColor(color);
                 toolbar.setPenDiameter(diameter);
-                canvas.draw(coords);	
+                canvas.draw(coords);
             });
-            
+
             lineColor = null;
             lineStartCoords = null;
             lineEndCoords = null;
@@ -57,11 +33,12 @@ let createArtist = function (canvas, toolbar) {
         };
 
         iterator(function (x, y) {
-            let color = getClosestToolbarColor(imageData.getRgbObject({ x, y }));
+            let color = colorHelper.getClosestColor(
+                imageData.getRgbObject({ x, y }), toolbar.getColors());
             lineColor = lineColor || color;
 
             let coords = { x: diameter / 2 + x * diameter, y: diameter / 2 + y * diameter };
-            
+
             if (shouldExtend(color)) {
                 startOrExtend(coords);
                 return;
@@ -70,18 +47,18 @@ let createArtist = function (canvas, toolbar) {
             drawAndEnd();
             startOrExtend(coords);
         });
-        
+
         if (lineColor) {
             drawAndEnd();
         }
-        
+
         return commands;
     };
 
     let draw = function (imageData, diameter) {
         let commands = [];
-        
-        // Draw vertical lines.
+
+        // Vertical lines
         for (let x = 0; x < imageData.width; x++) {
             commands = commands.concat(
                 drawLine(imageData, diameter, function (iterate) {
@@ -92,7 +69,7 @@ let createArtist = function (canvas, toolbar) {
             );
         }
 
-        // Draw horizontal lines.
+        // Horizontal lines
         for (let y = 0; y < imageData.height; y++) {
             commands = commands.concat(
                 drawLine(imageData, diameter, function (iterate) {
@@ -102,10 +79,10 @@ let createArtist = function (canvas, toolbar) {
                 })
             );
         }
-        
+
         return commands;
     };
-    
+
     return {
         draw: function (imageHelper) {
             let commands = [];
@@ -114,14 +91,20 @@ let createArtist = function (canvas, toolbar) {
                 toolbar.clear();
             });
 
-            for (let diameter of toolbar.getPenDiameters()) {
+            for (let diameter of toolbar.getPenDiameters()
+                .filter(d => d > 4) // Diameter 4 generates too many draw commands. Disable it until drawing is more efficient.
+                .sort().reverse()) {
                 let effectiveResolution = {
                     width: canvas.size.width / diameter,
                     height: canvas.size.height / diameter
                 };
-                let imageData = imageHelper.fitImageData(effectiveResolution);
+                let imageData = imageHelper.fitImageData(effectiveResolution,
+                     /* backgroundColor */ { r: 255, g: 255, b: 255 });
+
+                log(`Generating draw commands for ${diameter}px pen...`);
                 let commands2 = draw(imageData, diameter);
-                
+                log(`${commands2.length} commands generated.`);
+
                 // Randomize commands.
                 commands2.sort(function () { return 0.5 - Math.random(); });
                 commands = commands.concat(commands2);

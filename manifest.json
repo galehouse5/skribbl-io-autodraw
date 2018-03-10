@@ -7,9 +7,15 @@
     },
     "content_scripts": [
         {
-            "matches": ["https://skribbl.io/*"],
-            "css": ["main.css"],
+            "matches": [
+                "https://skribbl.io/*"
+            ],
+            "css": [
+                "main.css"
+            ],
             "js": [
+                "log.js",
+                "color-helper.js",
                 "image-helper.js",
                 "canvas.js",
                 "toolbar.js",

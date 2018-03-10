@@ -3,7 +3,8 @@ let createCanvas = function (document) {
 
     let getMouseCoords = function (canvasCoords) {
         var bounds = element.getBoundingClientRect();
-        return { 
+
+        return {
             x: canvasCoords.x * bounds.width / 800 + bounds.x,
             y: canvasCoords.y * bounds.height / 600 + bounds.y
         };

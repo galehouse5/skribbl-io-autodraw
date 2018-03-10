@@ -1,101 +1,105 @@
-(function (document, log) {
-    log("Initializing overlay...");
+log("Initializing overlay...");
+let overlay = document.createElement("p");
+overlay.id = "autoDrawOverlay";
+overlay.innerText = "Drag and drop an image here to auto draw!";
 
-    let canvasContainer = document.getElementById("containerCanvas");
+let canvasContainer = document.getElementById("containerCanvas");
+canvasContainer.appendChild(overlay);
 
-    let overlay = document.createElement("p");
-    overlay.id = "autoDrawOverlay";
-    overlay.innerText = "Drag and drop an image here to auto draw!";
-    canvasContainer.appendChild(overlay);
+let onDragOver = function (event) {
+    canvasContainer.classList.add("showAutoDrawOverlay");
+    // MDN: If you want to allow a drop, you must prevent the default handling by cancelling the event. 
+    event.preventDefault();
+};
 
-    let onDragOver = function (event) {
-        canvasContainer.classList.add("showAutoDrawOverlay");
-        // MDN: If you want to allow a drop, you must prevent the default handling by cancelling the event. 
-        event.preventDefault();
-    };
+let onDragLeave = function () {
+    canvasContainer.classList.remove("showAutoDrawOverlay");
+};
 
-    let onDragLeave = function () {
-        canvasContainer.classList.remove("showAutoDrawOverlay");
-    };
+let getImgFileUrl = function (dataTransfer) {
+    if (!dataTransfer.files.length) return null;
 
-    let canvas = createCanvas(document);
-    let toolbar = createToolbar(document);
-    let artist = createArtist(canvas, toolbar);
+    var file = dataTransfer.files[0];
+    if (!file.type.startsWith("image/")) {
+        log("Dropped file isn't an image.")
+        return null;
+    }
 
-    let processCommandsWithoutBlocking = function (commands) {
-        let processNextCommand = function () {
-            if (!commands.length) return;
+    return URL.createObjectURL(dataTransfer.files[0]);
+};
 
-            commands.shift()();
-            setTimeout(processNextCommand, 0);
-        };
+let getImgElementSrc = function (dataTransfer) {
+    let html = dataTransfer.getData("text/html");
+    if (!html) return null;
 
-        processNextCommand();
-    };
+    var container = document.createElement("div");
+    container.innerHTML = html;
 
-    let getImgFileUrl = function (dataTransfer) {
-        if (!dataTransfer.files.length) return null;
+    var element = container.firstChild;
+    if (!element || !/^img$/i.test(element.tagName)) {
+        log("Dropped element isn't an image.");
+        return null;
+    }
 
-        var file = dataTransfer.files[0];
-        if (!file.type.startsWith("image/")) {
-            log("Dropped file isn't an image.")
-            return null;
-        }
+    return element.getAttribute("src");
+};
 
-        return URL.createObjectURL(dataTransfer.files[0]);
-    };
+let processCommandsWithoutBlocking = function (commands) {
+    log(`Processing ${commands.length} commands...`);
 
-    let getImgElementSrc = function (dataTransfer) {
-        let html = dataTransfer.getData("text/html");
-        if (!html) return null;
-
-        var container = document.createElement("div");
-        container.innerHTML = html;
-
-        var element = container.firstChild;
-        if (!element || !/^img$/i.test(element.tagName)) {
-            log("Dropped element isn't an image.");
-            return null;
-        }
-
-        return element.getAttribute("src");
-    };
-
-    let onDrop = function (event) {
-        log("Processing dropped content...");
-
-        canvasContainer.classList.remove("showAutoDrawOverlay");
-        event.preventDefault();
-
-        let imageUrl = getImgFileUrl(event.dataTransfer)
-            || getImgElementSrc(event.dataTransfer);
-        if (!imageUrl) {
-            log("Unable to process dropped content.")
+    let processNextCommand = function () {
+        if (!commands.length) { 
+            log (`Processing finished.`);
             return;
-        };
+        }
 
-        let image = new Image;
+        commands.shift()();
 
-        image.onload = function () {
-            log("Image loaded, drawing...");
+        if (commands.length % 100 == 0 && commands.length > 0) {
+            log(`${commands.length} commands remaining to process.`);
+        }
 
-            let helper = createImageHelper(image);
-            let commands = artist.draw(helper);
-            processCommandsWithoutBlocking(commands);
-        };
-
-        image.onerror = function () {
-            log("Error loading image from URL.");
-        };
-
-        // CORS prohibits pixel access to images from a different origin.
-        image.crossOrigin = "Anonymous";
-        image.src = imageUrl.startsWith("http") ? ("https://cors-anywhere.herokuapp.com/" + imageUrl) : imageUrl;
-
-        log("Dropped content processed, loading image (" + imageUrl + ")...");
+        setTimeout(processNextCommand, 0);
     };
 
-    canvasContainer.addEventListener("dragover", onDragOver);
-    canvasContainer.addEventListener("dragleave", onDragLeave);
-    canvasContainer.addEventListener("drop", onDrop);
-})(document, function (message) { console.log("skribbl.io AutoDraw: " + message); });
+    processNextCommand();
+};
+
+let canvas = createCanvas(document);
+let toolbar = createToolbar(document);
+let artist = createArtist(canvas, toolbar, colorHelper);
+
+let onDrop = function (event) {
+    log("Processing dropped content...");
+    canvasContainer.classList.remove("showAutoDrawOverlay");
+    event.preventDefault();
+
+    let imageUrl = getImgFileUrl(event.dataTransfer)
+        || getImgElementSrc(event.dataTransfer);
+    if (!imageUrl) {
+        log("Dropped content not recognized.");
+        return;
+    };
+
+    let image = new Image;
+
+    image.onload = function () {
+        log(`Drawing ${image.width} x ${image.height} image...`);
+        let helper = createImageHelper(image);
+        let commands = artist.draw(helper);
+        processCommandsWithoutBlocking(commands);
+    };
+
+    image.onerror = function () {
+        log("Error loading image.");
+    };
+
+    log(`Loading image: ${imageUrl}...`);
+    // CORS prohibits pixel access to images from a different origin.
+    image.crossOrigin = "Anonymous";
+    image.src = imageUrl.startsWith("http") ? ("https://cors-anywhere.herokuapp.com/" + imageUrl) : imageUrl;
+};
+
+canvasContainer.addEventListener("dragover", onDragOver);
+canvasContainer.addEventListener("dragleave", onDragLeave);
+canvasContainer.addEventListener("drop", onDrop);
