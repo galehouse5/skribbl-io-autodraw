@@ -15,6 +15,7 @@
             ],
             "js": [
                 "log.js",
+                "non-blocking-processor.js",
                 "color-helper.js",
                 "image-helper.js",
                 "canvas.js",

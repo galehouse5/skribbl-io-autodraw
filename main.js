@@ -44,27 +44,6 @@ let getImgElementSrc = function (dataTransfer) {
     return element.getAttribute("src");
 };
 
-let processCommandsWithoutBlocking = function (commands) {
-    log(`Processing ${commands.length} commands...`);
-
-    let processNextCommand = function () {
-        if (!commands.length) { 
-            log (`Processing finished.`);
-            return;
-        }
-
-        commands.shift()();
-
-        if (commands.length % 100 == 0 && commands.length > 0) {
-            log(`${commands.length} commands remaining to process.`);
-        }
-
-        setTimeout(processNextCommand, 0);
-    };
-
-    processNextCommand();
-};
-
 let canvas = createCanvas(document);
 let toolbar = createToolbar(document);
 let artist = createArtist(canvas, toolbar, colorHelper);
@@ -87,7 +66,7 @@ let onDrop = function (event) {
         log(`Drawing ${image.width} x ${image.height} image...`);
         let helper = createImageHelper(image);
         let commands = artist.draw(helper);
-        processCommandsWithoutBlocking(commands);
+        processWithoutBlocking(commands, 10);
     };
 
     image.onerror = function () {
