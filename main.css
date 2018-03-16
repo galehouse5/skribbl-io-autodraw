@@ -17,7 +17,7 @@
 }
 
 .showAutoDrawOverlay #canvasGame {
-    opacity: 0.5;
+    opacity: 0.25;
 }
 
 @media (max-width: 1100px) {

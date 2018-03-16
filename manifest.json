@@ -15,12 +15,16 @@
             ],
             "js": [
                 "log.js",
-                "non-blocking-processor.js",
+
+                "data-transfer-helper.js",
                 "color-helper.js",
                 "image-helper.js",
+
+                "non-blocking-processor.js",
+                "artist.js",
                 "canvas.js",
                 "toolbar.js",
-                "artist.js",
+
                 "main.js"
             ]
         }

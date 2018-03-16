@@ -87,10 +87,6 @@ let createArtist = function (canvas, toolbar, colorHelper) {
         draw: function (imageHelper) {
             let commands = [];
 
-            commands.push(function () {
-                toolbar.clear();
-            });
-
             for (let diameter of toolbar.getPenDiameters()
                 .filter(d => d > 4) // Diameter 4 generates too many draw commands. Disable it until drawing is more efficient.
                 .sort().reverse()) {
