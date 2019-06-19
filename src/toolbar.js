@@ -1,4 +1,4 @@
-let createToolbar = function (document) {
+export default function (document) {
     let toRgbObject = function (rgbString) {
         let parts = rgbString.substring(4, rgbString.length - 1).split(", ");
         return { r: parseInt(parts[0]), g: parseInt(parts[1]), b: parseInt(parts[2]) };

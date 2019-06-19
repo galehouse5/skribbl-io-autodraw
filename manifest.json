@@ -14,18 +14,7 @@
                 "main.css"
             ],
             "js": [
-                "log.js",
-
-                "data-transfer-helper.js",
-                "color-helper.js",
-                "image-helper.js",
-
-                "non-blocking-processor.js",
-                "artist.js",
-                "canvas.js",
-                "toolbar.js",
-
-                "main.js"
+                "dist/main.js"
             ]
         }
     ]

@@ -1,8 +1,8 @@
-let createCanvas = function (document) {
+export default function (document) {
     let element = document.getElementById("canvasGame");
 
     let getMouseCoords = function (canvasCoords) {
-        var bounds = element.getBoundingClientRect();
+        let bounds = element.getBoundingClientRect();
 
         return {
             x: canvasCoords.x * bounds.width / 800 + bounds.x,

@@ -1,4 +1,6 @@
-let createImageHelper = function (image) {
+import log from "./log";
+
+export default function (image) {
     let createCanvas = function (canvasSize) {
         let canvas = document.createElement("canvas");
         canvas.width = canvasSize.width;
@@ -52,6 +54,7 @@ let createImageHelper = function (image) {
     let normalizeImageData = function (normalize, size, backgroundColor) {
         let canvas = createCanvas(size);
         let context = canvas.getContext("2d");
+        context.imageSmoothingEnabled = false; // Smoothing creates weird edge color artifacts in a downsampled image.
 
         if (backgroundColor) {
             clear(canvas, context, backgroundColor);

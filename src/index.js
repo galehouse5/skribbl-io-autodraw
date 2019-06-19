@@ -1,9 +1,17 @@
+import createCanvas from "./canvas";
+import createToolbar from "./toolbar";
+import createArtist from "./artist";
+import createImageHelper from "./image-helper";
+import { getImgFileUrl, getImgElementSrc } from "./data-transfer-helper";
+import log from "./log";
+import processWithoutBlocking from "./non-blocking-processor";
+
 let canvasContainer = document.getElementById("containerCanvas");
 let clearButton = document.getElementById("buttonClearCanvas");
 
 let canvas = createCanvas(document);
 let toolbar = createToolbar(document);
-let artist = createArtist(canvas, toolbar, colorHelper);
+let artist = createArtist(canvas, toolbar);
 let commands = [];
 
 let showOverlay = function () {
@@ -20,8 +28,8 @@ let drawImage = function () {
     toolbar.clear();
 
     log(`Drawing ${this.width} x ${this.height} image...`);
-    let helper = createImageHelper(this);
-    commands = artist.draw(helper);
+    let imageHelper = createImageHelper(this);
+    commands = artist.draw(imageHelper);
     processWithoutBlocking(commands, 10);
 };
 
@@ -51,8 +59,8 @@ let drawDroppedImage = function () {
     canvasContainer.classList.remove("showAutoDrawOverlay");
     event.preventDefault();
 
-    let imageUrl = dataTransferHelper.getImgFileUrl(event.dataTransfer)
-        || dataTransferHelper.getImgElementSrc(event.dataTransfer);
+    let imageUrl = getImgFileUrl(event.dataTransfer)
+        || getImgElementSrc(event.dataTransfer);
     if (!imageUrl) {
         log("Dropped content not recognized.");
         return;

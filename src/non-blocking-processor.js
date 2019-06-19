@@ -1,4 +1,6 @@
-let processWithoutBlocking = function (commands, delay) {
+import log from "./log";
+
+export default function (commands, delay) {
     let process = function () {
         if (!commands.length) { 
             log (`Processing finished.`);

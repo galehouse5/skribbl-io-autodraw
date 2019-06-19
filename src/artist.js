@@ -1,5 +1,10 @@
-let createArtist = function (canvas, toolbar, colorHelper) {
-    let drawLine = function (imageData, diameter, iterator) {
+import createColorPalette from './color-palette';
+import log from "./log";
+
+export default function (canvas, toolbar) {
+    let colorPalette = createColorPalette(toolbar.getColors());
+
+    let drawLine = function (imageData, diameter, closestColorCache, iterator) {
         let commands = [];
         let lineColor = null;
         let lineStartCoords = null;
@@ -33,8 +38,8 @@ let createArtist = function (canvas, toolbar, colorHelper) {
         };
 
         iterator(function (x, y) {
-            let color = colorHelper.getClosestColor(
-                imageData.getRgbObject({ x, y }), toolbar.getColors());
+            let color = colorPalette.getClosestColor(
+                imageData.getRgbObject({ x, y }), closestColorCache);
             lineColor = lineColor || color;
 
             let coords = { x: diameter / 2 + x * diameter, y: diameter / 2 + y * diameter };
@@ -57,11 +62,12 @@ let createArtist = function (canvas, toolbar, colorHelper) {
 
     let draw = function (imageData, diameter) {
         let commands = [];
+        let closestColorCache = {};
 
         // Vertical lines
         for (let x = 0; x < imageData.width; x++) {
             commands = commands.concat(
-                drawLine(imageData, diameter, function (iterate) {
+                drawLine(imageData, diameter, closestColorCache, function (iterate) {
                     for (let y = 0; y < imageData.height; y++) {
                         iterate(x, y);
                     }
@@ -72,7 +78,7 @@ let createArtist = function (canvas, toolbar, colorHelper) {
         // Horizontal lines
         for (let y = 0; y < imageData.height; y++) {
             commands = commands.concat(
-                drawLine(imageData, diameter, function (iterate) {
+                drawLine(imageData, diameter, closestColorCache, function (iterate) {
                     for (let x = 0; x < imageData.width; x++) {
                         iterate(x, y);
                     }
