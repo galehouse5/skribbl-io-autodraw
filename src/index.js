@@ -1,7 +1,6 @@
 import createCanvas from "./canvas";
 import createToolbar from "./toolbar";
 import createArtist from "./artist";
-import createImageHelper from "./image-helper";
 import { getImgFileUrl, getImgElementSrc } from "./data-transfer-helper";
 import log from "./log";
 import processWithoutBlocking from "./non-blocking-processor";
@@ -25,12 +24,16 @@ let hideOverlay = function () {
 };
 
 let drawImage = function () {
+    log("Clearing canvas...");
     toolbar.clear();
 
-    log(`Drawing ${this.width} x ${this.height} image...`);
-    let imageHelper = createImageHelper(this);
-    commands = artist.draw(imageHelper);
-    processWithoutBlocking(commands, 10);
+    // The clear command is processed after a ~100ms delay. Some of our drawing will be cleared unless we wait.
+    const image = this;
+    setTimeout(function () {
+        log(`Drawing ${image.width} x ${image.height} image...`);
+        commands = commands.concat(artist.draw(image));
+        processWithoutBlocking(commands, 10);
+    }, 150);
 };
 
 let stopDrawing = function () {

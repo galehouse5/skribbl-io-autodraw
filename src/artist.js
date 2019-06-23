@@ -1,117 +1,131 @@
-import createColorPalette from './color-palette';
+import createColorPalette from "./color-palette";
+import { fit, fill } from "./image-helper";
 import log from "./log";
 
+const diameter = 2.9;
+const scale = fit;
+
 export default function (canvas, toolbar) {
-    let colorPalette = createColorPalette(toolbar.getColors());
-
-    let drawLine = function (imageData, diameter, closestColorCache, iterator) {
-        let commands = [];
-        let lineColor = null;
-        let lineStartCoords = null;
-        let lineEndCoords = null;
-
-        let drawAndEnd = function () {
-            let color = lineColor;
-            let coords = [lineStartCoords, lineEndCoords];
-
-            commands.push(function () {
-                toolbar.setPenTool();
-                toolbar.setColor(color);
-                toolbar.setPenDiameter(diameter);
-                canvas.draw(coords);
-            });
-
-            lineColor = null;
-            lineStartCoords = null;
-            lineEndCoords = null;
-        };
-
-        let shouldExtend = function (color) {
-            return color.r === lineColor.r
-                && color.g === lineColor.g
-                && color.b === lineColor.b;
-        };
-
-        let startOrExtend = function (coords) {
-            lineStartCoords = lineStartCoords || coords;
-            lineEndCoords = coords;
-        };
-
-        iterator(function (x, y) {
-            let color = colorPalette.getClosestColor(
-                imageData.getRgbObject({ x, y }), closestColorCache);
-            lineColor = lineColor || color;
-
-            let coords = { x: diameter / 2 + x * diameter, y: diameter / 2 + y * diameter };
-
-            if (shouldExtend(color)) {
-                startOrExtend(coords);
-                return;
-            };
-
-            drawAndEnd();
-            startOrExtend(coords);
-        });
-
-        if (lineColor) {
-            drawAndEnd();
-        }
-
-        return commands;
+    const colorPalette = createColorPalette(toolbar.getColors());
+    const effectiveDrawingSize = {
+        width: canvas.size.width / diameter,
+        height: canvas.size.height / diameter
     };
 
-    let draw = function (imageData, diameter) {
-        let commands = [];
-        let closestColorCache = {};
+    const getMostCommonColor = function (lines) {
+        const counts = {};
 
-        // Vertical lines
-        for (let x = 0; x < imageData.width; x++) {
-            commands = commands.concat(
-                drawLine(imageData, diameter, closestColorCache, function (iterate) {
-                    for (let y = 0; y < imageData.height; y++) {
-                        iterate(x, y);
-                    }
-                })
-            );
+        for (const line of lines) {
+            const key = JSON.stringify(line.color);
+            counts[key] = (counts[key] || 0) + 1;
         }
 
-        // Horizontal lines
-        for (let y = 0; y < imageData.height; y++) {
-            commands = commands.concat(
-                drawLine(imageData, diameter, closestColorCache, function (iterate) {
-                    for (let x = 0; x < imageData.width; x++) {
-                        iterate(x, y);
-                    }
-                })
-            );
+        const mostCommon = Object.keys(counts)
+            .reduce((c1, c2) => counts[c1] > counts[c2] ? c1 : c2);
+        return JSON.parse(mostCommon);
+    };
+
+    const fillCanvas = function (color) {
+        return [
+            function () {
+                toolbar.setFillTool();
+                toolbar.setColor(color);
+                canvas.draw([
+                    { x: 0, y: 0 },
+                    { x: 0, y: 0 }
+                ]);
+            }
+        ];
+    };
+
+    const extractLines = function (image) {
+        const data = image.data;
+        const colorCache = {};
+        const lines = [];
+
+        let lineStartX = 0;
+        let lineColor = null;
+        let i = 0;
+
+        for (let y = 0; y < image.height; y++) {
+            for (let x = 0; x < image.width; x++) {
+                const pixelColor = { r: data[i + 0], g: data[i + 1], b: data[i + 2] };
+                const paletteColor = colorPalette.getClosestColor(pixelColor, colorCache);
+
+                if (lineColor == null) {
+                    lineColor = paletteColor;
+                    continue;
+                }
+
+                if (lineColor != paletteColor) {
+                    lines.push({ y: y, startX: lineStartX, endX: x - 1, color: lineColor });
+                    lineStartX = x;
+                    lineColor = paletteColor;
+                }
+
+                i += 4;
+            }
+
+            lines.push({ y: y, startX: lineStartX, endX: image.width - 1, color: lineColor });
+            lineStartX = 0;
+            lineColor = null;
+
+            i += 4;
+        }
+
+        return lines;
+    };
+
+    const drawLines = function (lines, offset) {
+        const commands = [];
+
+        for (const line of lines) {
+            commands.push(function () {
+                toolbar.setPenTool();
+                toolbar.setColor(line.color);
+                toolbar.setPenDiameter(diameter);
+                canvas.draw([
+                    { x: (line.startX + offset.x) * diameter, y: (line.y + offset.y) * diameter },
+                    { x: (line.endX + offset.x) * diameter, y: (line.y + offset.y) * diameter }
+                ]);
+            });
         }
 
         return commands;
     };
 
     return {
-        draw: function (imageHelper) {
+        draw: function (image) {
+            const scaledImage = scale(effectiveDrawingSize, image);
+
+            log("Generating draw commands...");
             let commands = [];
 
-            for (let diameter of toolbar.getPenDiameters()
-                .filter(d => d > 4) // Diameter 4 generates too many draw commands. Disable it until drawing is more efficient.
-                .sort().reverse()) {
-                let effectiveResolution = {
-                    width: canvas.size.width / diameter,
-                    height: canvas.size.height / diameter
-                };
-                let imageData = imageHelper.fitImageData(effectiveResolution,
-                     /* backgroundColor */ { r: 255, g: 255, b: 255 });
+            const allLines = extractLines(scaledImage);
+            const mostCommonColor = getMostCommonColor(allLines);
+            commands = commands.concat(fillCanvas(mostCommonColor));
 
-                log(`Generating draw commands for ${diameter}px pen...`);
-                let commands2 = draw(imageData, diameter);
-                log(`${commands2.length} commands generated.`);
+            // Don't need to draw lines that match the fill color.
+            const filteredLines = allLines
+                .filter(l => JSON.stringify(l.color) != JSON.stringify(mostCommonColor));
 
-                // Randomize commands.
-                commands2.sort(function () { return 0.5 - Math.random(); });
-                commands = commands.concat(commands2);
-            }
+            const sortedLines = filteredLines
+                // Randomize drawing order so the overall image becomes apparent sooner.
+                .sort(() => 0.5 - Math.random())
+                // Long and short lines take the same time to draw. Draw long ones first so the image fills in faster.
+                .sort((l1, l2) => {
+                    const length1 = l1.endX - l1.startX;
+                    const length2 = l2.endX - l2.startX;
+                    return length1 > length2 ? -1 : length1 == length2 ? 0 : /* length1 < length2 ? */ 1;
+                });
 
+            let drawingOffset = {
+                x: (effectiveDrawingSize.width - scaledImage.width) / 2 + 0.5,
+                y: (effectiveDrawingSize.height - scaledImage.height) / 2 + 0.5
+            };
+            commands = commands.concat(drawLines(sortedLines, drawingOffset));
+
+            log(`${commands.length} commands generated.`);
             return commands;
         }
     };

@@ -1,78 +1,36 @@
 import log from "./log";
 
-export default function (image) {
-    let createCanvas = function (canvasSize) {
-        let canvas = document.createElement("canvas");
-        canvas.width = canvasSize.width;
-        canvas.height = canvasSize.height;
-        return canvas;
-    };
+export function fill(size, image) {
+    let factor = Math.max(size.width / image.width, size.height / image.height);
 
-    let fill = function (canvas, context) {
-        let factor = Math.max(canvas.width / image.width, canvas.height / image.height);
+    let dw = factor * image.width;
+    let dh = factor * image.height;
 
-        let dw = factor * image.width;
-        let dh = factor * image.height;
+    let dx = (size.width - dw) / 2;
+    let dy = (size.height - dh) / 2;
 
-        let dx = (canvas.width - dw) / 2;
-        let dy = (canvas.height - dh) / 2;
+    return scale(size, ctx => ctx.drawImage(image, dx, dy, dw, dh));
+};
 
-        context.drawImage(image, dx, dy, dw, dh);
-    };
+export function fit(size, image) {
+    let factor = Math.min(size.width / image.width, size.height / image.height);
 
-    let fit = function (canvas, context) {
-        let factor = Math.min(canvas.width / image.width, canvas.height / image.height);
+    let dw = factor * image.width;
+    let dh = factor * image.height;
 
-        let dw = factor * image.width;
-        let dh = factor * image.height;
+    return scale({ width: dw, height: dh }, ctx => ctx.drawImage(image, 0, 0, dw, dh));
+};
 
-        let dx = (canvas.width - dw) / 2;
-        let dy = (canvas.height - dh) / 2;
+let scale = function(size, draw) {
+    log(`Scaling image to ${size.width} x ${size.height}...`);
 
-        context.drawImage(image, dx, dy, dw, dh);
-    };
+    let canvas = document.createElement("canvas");
+    canvas.width = size.width;
+    canvas.height = size.height;
 
-    let getImageData = function (canvas, context) {
-        let imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+    let context = canvas.getContext("2d");
+    context.imageSmoothingEnabled = false; // Smoothing creates weird edge color artifacts in a downsampled image.
+    draw(context);
 
-        imageData.getRgbObject = function (coords) {
-            return {
-                r: this.data[4 * (coords.x + coords.y * this.width) + 0],
-                g: this.data[4 * (coords.x + coords.y * this.width) + 1],
-                b: this.data[4 * (coords.x + coords.y * this.width) + 2]
-            };
-        };
-
-        return imageData;
-    };
-
-    let clear = function (canvas, context, color) {
-        context.fillStyle = `rgb(${color.r}, ${color.g}, ${color.b})`;
-        context.fillRect(0, 0, canvas.width, canvas.height);
-    };
-
-    let normalizeImageData = function (normalize, size, backgroundColor) {
-        let canvas = createCanvas(size);
-        let context = canvas.getContext("2d");
-        context.imageSmoothingEnabled = false; // Smoothing creates weird edge color artifacts in a downsampled image.
-
-        if (backgroundColor) {
-            clear(canvas, context, backgroundColor);
-        }
-
-        normalize(canvas, context);
-        return getImageData(canvas, context);
-    };
-
-    return {
-        fillImageData: function (size, backgroundColor) {
-            log(`Normalizing image to ${size.width} x ${size.height} using fill transform...`);
-            return normalizeImageData(fill, size, backgroundColor);
-        },
-
-        fitImageData: function (size, backgroundColor) {
-            log(`Normalizing image to ${size.width} x ${size.height} using fit transform...`);
-            return normalizeImageData(fit, size, backgroundColor);
-        }
-    };
+    return context.getImageData(0, 0, canvas.width, canvas.height);
 };

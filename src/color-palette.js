@@ -1,4 +1,4 @@
-import color from 'color-diff';
+import color from "color-diff";
 
 export default function (rgbPalette) {
     let labPalette = rgbPalette

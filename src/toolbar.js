@@ -14,10 +14,11 @@ export default function (document) {
 
     let sizeElements = Array.prototype.slice.call(document.querySelectorAll("[data-size]"));
     let sizeElementsLookup = {
-        4: sizeElements.filter(e => e.getAttribute("data-size") === "0")[0],
-        10: sizeElements.filter(e => e.getAttribute("data-size") === "0.15")[0],
-        20: sizeElements.filter(e => e.getAttribute("data-size") === "0.45")[0],
-        40: sizeElements.filter(e => e.getAttribute("data-size") === "1")[0],
+        // Not 3 because it creates blank horizontal lines about every 50 vertical pixels.
+        2.9: sizeElements.filter(e => e.getAttribute("data-size") === "0")[0],
+        7: sizeElements.filter(e => e.getAttribute("data-size") === "0.15")[0],
+        19: sizeElements.filter(e => e.getAttribute("data-size") === "0.45")[0],
+        39: sizeElements.filter(e => e.getAttribute("data-size") === "1")[0],
     };
 
     let clearElement = document.getElementById("buttonClearCanvas");
