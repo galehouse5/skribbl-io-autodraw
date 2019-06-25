@@ -1,9 +1,10 @@
 {
     "manifest_version": 2,
-    "name": "Skribbl.io AutoDraw",
-    "version": "0.1.0",
+    "name": "AutoDraw for skribbl.io",
+    "description": "Auto draws images in pictionary game, skribbl.io.",
+    "version": "0.2.1",
     "icons": {
-        "42": "icon42.png"
+        "128": "icon128.png"
     },
     "content_scripts": [
         {

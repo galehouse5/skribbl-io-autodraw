@@ -33,7 +33,7 @@ export default function (document) {
             let rgbString = toRgbString(color);
             colorElementsLookup.get(rgbString).click();
         },
-        getPenDiameters: () => [4, 10, 20, 40],
+        getPenDiameters: () => [2.9, 7, 19, 39],
         setPenDiameter: diameter => { sizeElementsLookup[diameter].click(); },
         clear: () => { clearElement.click(); },
         setPenTool: () => { penToolElement.click(); },
