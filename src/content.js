@@ -23,12 +23,11 @@ let hideOverlay = function () {
     canvasContainer.classList.remove("showAutoDrawOverlay");
 };
 
-let drawImage = function () {
+let drawImage = function (image) {
     log("Clearing canvas...");
     toolbar.clear();
 
     // The clear command is processed after a ~100ms delay. Some of our drawing will be cleared unless we wait.
-    const image = this;
     setTimeout(function () {
         log(`Drawing ${image.width} x ${image.height} image...`);
         commands = commands.concat(artist.draw(image));
@@ -44,19 +43,6 @@ let stopDrawing = function () {
     log("Drawing stopped.");
 };
 
-let loadImage = function (url, callback) {
-    let image = new Image;
-    image.onload = callback;
-    image.onerror = function () {
-        log("Error loading image.");
-    };
-
-    log(`Loading image: ${url}...`);
-    // CORS prohibits pixel access to images from a different origin.
-    image.crossOrigin = "Anonymous";
-    image.src = url.startsWith("http") ? ("https://cors-anywhere.herokuapp.com/" + url) : url;
-};
-
 let drawDroppedImage = function () {
     log("Processing dropped content...");
     canvasContainer.classList.remove("showAutoDrawOverlay");
@@ -69,7 +55,15 @@ let drawDroppedImage = function () {
         return;
     };
 
-    loadImage(imageUrl, drawImage);
+    log(`Loading image: ${imageUrl}...`);
+    // Go through this ceremony to work around CORS restrictions.
+    chrome.runtime.sendMessage(
+        { contentScriptQuery: "loadImageDataUrl", url: imageUrl },
+        dataUrl => {
+            const image = new Image;
+            image.src = dataUrl;
+            drawImage(image);
+        });
 }
 
 canvasContainer.addEventListener("dragover", showOverlay);
