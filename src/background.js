@@ -14,7 +14,7 @@ const handleMessage = function (message, sender, sendResponse) {
         return true;
     }
 
-    throw "Not supported.";
+    throw "Not supported";
 };
 
 chrome.runtime.onMessage.addListener(handleMessage);

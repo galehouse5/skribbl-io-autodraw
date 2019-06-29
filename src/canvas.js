@@ -1,8 +1,6 @@
-export default function (document) {
-    let element = document.getElementById("canvasGame");
-
+export default function (canvasElement) {
     let getMouseCoords = function (canvasCoords) {
-        let bounds = element.getBoundingClientRect();
+        let bounds = canvasElement.getBoundingClientRect();
 
         return {
             x: canvasCoords.x * bounds.width / 800 + bounds.x,
@@ -24,15 +22,15 @@ export default function (document) {
 
         draw: function (coords) {
             let startMouseCoords = getMouseCoords(coords[0]);
-            element.dispatchEvent(createMouseEvent("mousedown", startMouseCoords));
+            canvasElement.dispatchEvent(createMouseEvent("mousedown", startMouseCoords));
 
             for (let i = 1; i < coords.length; i++) {
                 let mouseCoords = getMouseCoords(coords[i]);
-                element.dispatchEvent(createMouseEvent("mousemove", mouseCoords));
+                canvasElement.dispatchEvent(createMouseEvent("mousemove", mouseCoords));
             }
 
             let endMouseCoords = getMouseCoords(coords[coords.length - 1]);
-            element.dispatchEvent(createMouseEvent("mouseup", endMouseCoords));
+            canvasElement.dispatchEvent(createMouseEvent("mouseup", endMouseCoords));
         }
     };
 };

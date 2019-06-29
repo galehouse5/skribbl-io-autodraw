@@ -1,18 +1,20 @@
 import log from "./log";
 
-export default function (commands, delay) {
-    let process = function () {
-        if (!commands.length) { 
-            log (`Processing finished.`);
-            return;
-        }
+export default function (commands, delay, shouldStop) {
+    const process = function () {
+        if (!commands.length)
+            return log("Processing finished.");
 
-        let command = commands.shift();
+        if (shouldStop && shouldStop())
+            return log("Processing stopped.");
+
+        const command = commands.shift();
         command();
 
         if (commands.length % 100 == 0 && commands.length > 0) {
             log(`${commands.length} commands remaining to process.`);
         }
+
         setTimeout(process, delay || 0);
     };
 

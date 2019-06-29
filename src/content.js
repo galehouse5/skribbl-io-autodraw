@@ -4,26 +4,27 @@ import createArtist from "./artist";
 import { getImgFileUrl, getImgElementSrc } from "./data-transfer-helper";
 import log from "./log";
 import processWithoutBlocking from "./non-blocking-processor";
+import listenForDragEvents from "./drag-event-listener";
 
-let canvasContainer = document.getElementById("containerCanvas");
-let clearButton = document.getElementById("buttonClearCanvas");
+const canvasContainer = document.getElementById("containerCanvas");
+const clearButton = document.getElementById("buttonClearCanvas");
+const canvas = createCanvas(document.getElementById("canvasGame"));
+const toolbar = createToolbar(document.querySelector(".containerToolbar"));
+const artist = createArtist(canvas, toolbar);
 
-let canvas = createCanvas(document);
-let toolbar = createToolbar(document);
-let artist = createArtist(canvas, toolbar);
 let commands = [];
 
-let showOverlay = function () {
-    canvasContainer.classList.add("showAutoDrawOverlay");
-    // MDN: If you want to allow a drop, you must prevent the default handling by cancelling the event. 
-    event.preventDefault();
+const handleDragEnter = function () {
+    if (!toolbar.isEnabled()) return;
+
+    document.body.classList.add("dragging");
 };
 
-let hideOverlay = function () {
-    canvasContainer.classList.remove("showAutoDrawOverlay");
+const handleDragLeave = function () {
+    document.body.classList.remove("dragging");
 };
 
-let drawImage = function (image) {
+const drawImage = function (image) {
     log("Clearing canvas...");
     toolbar.clear();
 
@@ -31,11 +32,12 @@ let drawImage = function (image) {
     setTimeout(function () {
         log(`Drawing ${image.width} x ${image.height} image...`);
         commands = commands.concat(artist.draw(image));
-        processWithoutBlocking(commands, 10);
+        processWithoutBlocking(commands, 10,
+            /* shouldStop: */() => !toolbar.isEnabled());
     }, 150);
 };
 
-let stopDrawing = function () {
+const stopDrawing = function () {
     if (!commands.length) return;
 
     log("Clearing commands...");
@@ -43,36 +45,41 @@ let stopDrawing = function () {
     log("Drawing stopped.");
 };
 
-let drawDroppedImage = function () {
-    log("Processing dropped content...");
-    canvasContainer.classList.remove("showAutoDrawOverlay");
+const handleDrop = function (event) {
     event.preventDefault();
 
-    let imageUrl = getImgFileUrl(event.dataTransfer)
-        || getImgElementSrc(event.dataTransfer);
-    if (!imageUrl) {
-        log("Dropped content not recognized.");
-        return;
-    };
+    if (!canvasContainer.contains(event.target)) return;
+    if (!toolbar.isEnabled()) return log("Can't draw right now.");
 
-    log(`Loading image: ${imageUrl}...`);
+    log("Processing dropped content...");
+    const imageUrl = getImgFileUrl(event.dataTransfer)
+        || getImgElementSrc(event.dataTransfer);
+    if (!imageUrl) return log("Dropped content not recognized.");
+
+    loadImage(imageUrl, drawImage);
+};
+
+const loadImage = function (url, callback) {
+    log(`Loading image: ${url}...`);
     // Go through this ceremony to work around CORS restrictions.
     chrome.runtime.sendMessage(
-        { contentScriptQuery: "loadImageDataUrl", url: imageUrl },
+        { contentScriptQuery: "loadImageDataUrl", url },
         dataUrl => {
             const image = new Image;
             image.src = dataUrl;
-            drawImage(image);
+            callback(image);
         });
-}
+};
 
-canvasContainer.addEventListener("dragover", showOverlay);
-canvasContainer.addEventListener("dragleave", hideOverlay);
-canvasContainer.addEventListener("drop", drawDroppedImage);
+const initializeOverlay = function () {
+    log("Initializing overlay...");
+    const overlay = document.createElement("div");
+    overlay.id = "autoDrawOverlay";
+    overlay.innerText = "Drop image here to auto draw!";
+    canvasContainer.appendChild(overlay);
+};
+
+listenForDragEvents(document, handleDragEnter, handleDragLeave);
+document.body.addEventListener("drop", handleDrop);
 clearButton.addEventListener("click", stopDrawing);
-
-log("Initializing overlay...");
-let overlay = document.createElement("p");
-overlay.id = "autoDrawOverlay";
-overlay.innerText = "Drop an image here to auto draw!";
-canvasContainer.appendChild(overlay);
+initializeOverlay();

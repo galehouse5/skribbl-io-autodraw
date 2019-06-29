@@ -2,10 +2,7 @@ export function getImgFileUrl(dataTransfer) {
     if (!dataTransfer.files.length) return null;
 
     let file = dataTransfer.files[0];
-    if (!file.type.startsWith("image/")) {
-        log("Dropped file isn't an image.")
-        return null;
-    }
+    if (!file.type.startsWith("image/")) return null;
 
     return URL.createObjectURL(dataTransfer.files[0]);
 };
@@ -18,10 +15,7 @@ export function getImgElementSrc(dataTransfer) {
     container.innerHTML = html;
 
     let element = container.firstChild;
-    if (!element || !/^img$/i.test(element.tagName)) {
-        log("Dropped element isn't an image.");
-        return null;
-    }
+    if (!element || !/^img$/i.test(element.tagName)) return null;
 
     return element.getAttribute("src");
 }
