@@ -2,6 +2,7 @@ import createCanvas from "./canvas";
 import createToolbar from "./toolbar";
 import createArtist from "./artist";
 import { getImgFileUrl, getImgElementSrc } from "./data-transfer-helper";
+import { loadImage } from "./image-helper";
 import log from "./log";
 import processWithoutBlocking from "./non-blocking-processor";
 import listenForDragEvents from "./drag-event-listener";
@@ -56,19 +57,12 @@ const handleDrop = function (event) {
         || getImgElementSrc(event.dataTransfer);
     if (!imageUrl) return log("Dropped content not recognized.");
 
-    loadImage(imageUrl, drawImage);
-};
-
-const loadImage = function (url, callback) {
-    log(`Loading image: ${url}...`);
-    // Go through this ceremony to work around CORS restrictions.
-    chrome.runtime.sendMessage(
-        { contentScriptQuery: "loadImageDataUrl", url },
-        dataUrl => {
-            const image = new Image;
-            image.src = dataUrl;
-            callback(image);
-        });
+    loadImage(imageUrl)
+        // May need to load the image through a proxy if the host doesn't support CORS.
+        .catch(() => loadImage("https://yacdn.org/serve/" + imageUrl))
+        .catch(() => loadImage("https://cors-anywhere.herokuapp.com/" + imageUrl))
+        .then(drawImage)
+        .catch(() => log(`Couldn't load image: ${imageUrl}. Sorry :(`));
 };
 
 const initializeOverlay = function () {

@@ -2,7 +2,7 @@
     "manifest_version": 2,
     "name": "AutoDraw for skribbl.io",
     "description": "Auto draws images in pictionary game, skribbl.io.",
-    "version": "0.2.4",
+    "version": "0.2.5",
     "icons": {
         "128": "icon128.png"
     },
@@ -15,18 +15,9 @@
                 "main.css"
             ],
             "js": [
-                "dist/content.js"
+                "dist/main.js"
             ]
         }
-    ],
-    "background": {
-        "scripts": [
-            "dist/background.js"
-        ],
-        "persistent": false
-    },
-    "permissions": [
-        "<all_urls>"
     ],
     "homepage_url": "https://github.com/galehouse5/skribbl-io-autodraw"
 }

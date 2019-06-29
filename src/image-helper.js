@@ -1,6 +1,6 @@
 import log from "./log";
 
-export function fill(size, image) {
+export function fillImage(size, image) {
     let factor = Math.max(size.width / image.width, size.height / image.height);
 
     let dw = factor * image.width;
@@ -12,7 +12,7 @@ export function fill(size, image) {
     return scale(size, ctx => ctx.drawImage(image, dx, dy, dw, dh));
 };
 
-export function fit(size, image) {
+export function fitImage(size, image) {
     let factor = Math.min(size.width / image.width, size.height / image.height);
 
     let dw = factor * image.width;
@@ -21,7 +21,7 @@ export function fit(size, image) {
     return scale({ width: dw, height: dh }, ctx => ctx.drawImage(image, 0, 0, dw, dh));
 };
 
-let scale = function(size, draw) {
+let scale = function (size, draw) {
     log(`Scaling image to ${size.width} x ${size.height}...`);
 
     let canvas = document.createElement("canvas");
@@ -35,13 +35,18 @@ let scale = function(size, draw) {
     return context.getImageData(0, 0, canvas.width, canvas.height);
 };
 
-export function getDataUrl(image) {
-    const canvas = document.createElement("canvas");
-    const context = canvas.getContext("2d");
+export function loadImage(url) {
+    return new Promise((resolve, reject) => {
+        const image = new Image;
+        image.crossOrigin = "Anonymous";
+        image.onload = function () {
+            const blockedByCors = image.height === image.width === 0;
+            const executor = blockedByCors ? reject : resolve;
+            executor(image);
+        };
+        image.onerror = reject;
 
-    canvas.width = image.width;
-    canvas.height = image.height;
-    context.drawImage(image, 0, 0);
-
-    return canvas.toDataURL();
+        log(`Attempting to load image: ${url}...`);
+        image.src = url;
+    });
 };

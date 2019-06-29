@@ -1,15 +1,15 @@
 import createColorPalette from "./color-palette";
-import { fit, fill } from "./image-helper";
+import { fitImage, fillImage } from "./image-helper";
 import log from "./log";
 
-const diameter = 2.9;
-const scale = fit;
+const penDiameter = 2.9;
+const scaleImage = fitImage;
 
 export default function (canvas, toolbar) {
     const colorPalette = createColorPalette(toolbar.getColors());
     const effectiveDrawingSize = {
-        width: canvas.size.width / diameter,
-        height: canvas.size.height / diameter
+        width: canvas.size.width / penDiameter,
+        height: canvas.size.height / penDiameter
     };
 
     const getMostCommonColor = function (lines) {
@@ -83,10 +83,10 @@ export default function (canvas, toolbar) {
             commands.push(function () {
                 toolbar.setPenTool();
                 toolbar.setColor(line.color);
-                toolbar.setPenDiameter(diameter);
+                toolbar.setPenDiameter(penDiameter);
                 canvas.draw([
-                    { x: (line.startX + offset.x) * diameter, y: (line.y + offset.y) * diameter },
-                    { x: (line.endX + offset.x) * diameter, y: (line.y + offset.y) * diameter }
+                    { x: (line.startX + offset.x) * penDiameter, y: (line.y + offset.y) * penDiameter },
+                    { x: (line.endX + offset.x) * penDiameter, y: (line.y + offset.y) * penDiameter }
                 ]);
             });
         }
@@ -96,7 +96,7 @@ export default function (canvas, toolbar) {
 
     return {
         draw: function (image) {
-            const scaledImage = scale(effectiveDrawingSize, image);
+            const scaledImage = scaleImage(effectiveDrawingSize, image);
 
             log("Generating draw commands...");
             let commands = [];
