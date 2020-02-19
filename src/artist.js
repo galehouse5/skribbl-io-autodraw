@@ -103,6 +103,7 @@ export default function (canvas, toolbar) {
 
             const allLines = extractLines(scaledImage);
             const mostCommonColor = getMostCommonColor(allLines);
+            commands = commands.concat(console.log(`skribbl.io AutoDraw: Sending dummy command.`));
             commands = commands.concat(fillCanvas(mostCommonColor));
 
             // Don't need to draw lines that match the fill color.
