@@ -1,4 +1,6 @@
 export default function (canvasElement) {
+    const context = canvasElement.getContext('2d');
+
     let getMouseCoords = function (canvasCoords) {
         let bounds = canvasElement.getBoundingClientRect();
 
@@ -31,6 +33,19 @@ export default function (canvasElement) {
 
             let endMouseCoords = getMouseCoords(coords[coords.length - 1]);
             canvasElement.dispatchEvent(createMouseEvent("mouseup", endMouseCoords));
+        },
+
+        // Skribbl doesn't seem to trigger any events we can listen for to know the canvas is cleared.
+        // Instead we change a property of the canvas and poll until the clear command changes it back.
+        awaitClear: function (callback) {
+            context.fillStyle = "#000000";
+
+            let poll = function () {
+                if (context.fillStyle === "#ffffff") { callback(); }
+                else { setTimeout(poll, 1); }
+            };
+
+            poll();
         }
     };
 };

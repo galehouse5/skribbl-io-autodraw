@@ -110,7 +110,7 @@ export default function (canvas, toolbar) {
                 .filter(l => JSON.stringify(l.color) != JSON.stringify(mostCommonColor));
 
             const sortedLines = filteredLines
-                // Randomize drawing order so the overall image becomes apparent sooner.
+                // Randomize drawing order so the overall image fills in evenly.
                 .sort(() => 0.5 - Math.random())
                 // Long and short lines take the same time to draw. Draw long ones first so the image fills in faster.
                 .sort((l1, l2) => {

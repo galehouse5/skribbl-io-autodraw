@@ -29,13 +29,13 @@ const drawImage = function (image) {
     log("Clearing canvas...");
     toolbar.clear();
 
-    // The clear command is processed after a ~100ms delay. Some of our drawing will be cleared unless we wait.
-    setTimeout(function () {
+    // The clear command is echoed back by the server, which then clears the canvas a second time.
+    // We can't start drawing until after that second clear or we'll lose some of our work.
+    canvas.awaitClear(function () {
         log(`Drawing ${image.width} x ${image.height} image...`);
         commands = commands.concat(artist.draw(image));
-        processWithoutBlocking(commands, 10,
-            /* shouldStop: */() => !toolbar.isEnabled());
-    }, 150);
+        processWithoutBlocking(commands, /* shouldStop: */ () => !toolbar.isEnabled());
+    });
 };
 
 const stopDrawing = function () {

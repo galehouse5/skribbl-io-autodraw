@@ -1,6 +1,6 @@
 import log from "./log";
 
-export default function (commands, delay, shouldStop) {
+export default function (commands, shouldStop) {
     const process = function () {
         if (!commands.length)
             return log("Processing finished.");
@@ -15,7 +15,7 @@ export default function (commands, delay, shouldStop) {
             log(`${commands.length} commands remaining to process.`);
         }
 
-        setTimeout(process, delay || 0);
+        setTimeout(process, 0);
     };
 
     log(`Processing ${commands.length} commands...`);
