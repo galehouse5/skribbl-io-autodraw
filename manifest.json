@@ -2,7 +2,7 @@
     "manifest_version": 2,
     "name": "AutoDraw for skribbl.io",
     "description": "Auto draws images in pictionary game, skribbl.io.",
-    "version": "0.2.6",
+    "version": "0.2.7",
     "icons": {
         "128": "icon128.png"
     },

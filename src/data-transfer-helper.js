@@ -14,8 +14,8 @@ export function getImgElementSrc(dataTransfer) {
     let container = document.createElement("div");
     container.innerHTML = html;
 
-    let element = container.firstChild;
-    if (!element || !/^img$/i.test(element.tagName)) return null;
+    let imgs = container.getElementsByTagName("img");
+    if (!imgs.length) return;
 
-    return element.getAttribute("src");
-}
+    return imgs[0].getAttribute("src");
+};
