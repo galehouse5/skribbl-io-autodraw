@@ -6,45 +6,29 @@ import { loadImage } from "./image-helper";
 import log from "./log";
 import processWithoutBlocking from "./non-blocking-processor";
 import listenForDragDropEvents from "./drag-drop-event-listener";
+import createDomHelper from "./dom-helper";
 
-const canvasContainer = document.getElementById("containerCanvas");
-const clearButton = document.getElementById("buttonClearCanvas");
-const canvas = createCanvas(document.getElementById("canvasGame"));
-const toolbar = createToolbar(document.querySelector(".containerToolbar"));
+const domHelper = createDomHelper(document);
+const clearToolElement = domHelper.getClearToolElement();
+const canvas = createCanvas(domHelper.getCanvasElement());
+const toolbar = createToolbar(domHelper);
 const artist = createArtist(canvas, toolbar);
-const overlay = document.createElement("div");
-overlay.id = "autoDrawOverlay";
 
 let commands = [];
 
-const hideOverlay = function (delay) {
-    setTimeout(function () {
-        document.body.classList.remove("showingAutodrawOverlay");
-    }, delay || 0);
-};
-
-const showOverlay = function (text) {
-    overlay.innerText = text;
-    document.body.classList.add("showingAutodrawOverlay");
-};
-
 const handleDragEnter = function () {
     if (!toolbar.isEnabled()) return;
-    showOverlay("Drop image here to auto draw!");
+    domHelper.showCanvasOverlay("Drop image here to auto draw!");
 };
 
 const drawImage = function (image) {
     log("Clearing canvas...");
     toolbar.clear();
 
-    // The clear command is echoed back by the server, which then clears the canvas a second time.
-    // We can't start drawing until after that second clear or we'll lose some of our work.
-    canvas.awaitClear(function () {
-        log(`Drawing ${image.width} x ${image.height} image...`);
-        commands = commands.concat(artist.draw(image));
-        hideOverlay();
-        processWithoutBlocking(commands, /* shouldStop: */ () => !toolbar.isEnabled());
-    });
+    log(`Drawing ${image.width} x ${image.height} image...`);
+    commands = commands.concat(artist.draw(image));
+    domHelper.hideCanvasOverlay();
+    processWithoutBlocking(commands, /* shouldStop: */ () => !toolbar.isEnabled());
 };
 
 const stopDrawing = function () {
@@ -58,22 +42,22 @@ const stopDrawing = function () {
 const handleDrop = function (event) {
     event.preventDefault();
 
-    if (!canvasContainer.contains(event.target))
-        return hideOverlay();
+    if (!domHelper.getCanvasContainerElement().contains(event.target))
+        return domHelper.hideCanvasOverlay();
 
     if (!toolbar.isEnabled()) {
         log("Can't draw right now.");
-        return hideOverlay();
+        return domHelper.hideCanvasOverlay();
     } 
 
     log("Processing dropped content...");
-    showOverlay("Auto draw is loading image...");
+    domHelper.showCanvasOverlay("Auto draw is loading image...");
     const imageUrl = getImgFileUrl(event.dataTransfer)
         || getImgElementSrc(event.dataTransfer);
     if (!imageUrl) {
-        showOverlay("Auto draw couldn't load image :(");
+        domHelper.showCanvasOverlay("Auto draw couldn't load image :(");
         log("Dropped content not recognized.");
-        return hideOverlay(/* delay: */ 2500);
+        return domHelper.hideCanvasOverlay(/* delay: */ 2500);
     } 
 
     loadImage(imageUrl)
@@ -83,6 +67,5 @@ const handleDrop = function (event) {
         .catch(() => log(`Couldn't load image: ${imageUrl}. Sorry :(`));
 };
 
-listenForDragDropEvents(document, handleDragEnter, hideOverlay, handleDrop);
-clearButton.addEventListener("click", stopDrawing);
-canvasContainer.appendChild(overlay);
+listenForDragDropEvents(document, handleDragEnter, domHelper.hideCanvasOverlay, handleDrop);
+clearToolElement.addEventListener("click", stopDrawing);

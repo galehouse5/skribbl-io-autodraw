@@ -2,14 +2,16 @@ import createColorPalette from "./color-palette";
 import { fitImage, fillImage } from "./image-helper";
 import log from "./log";
 
-const penDiameter = 2.9;
+const nominalPenDiameter = 4;
+// Treat the pen like it's smaller to prevent blank horizontal lines.
+const realPenDiameter = 2.9;
 const scaleImage = fitImage;
 
 export default function (canvas, toolbar) {
     const colorPalette = createColorPalette(toolbar.getColors());
     const effectiveDrawingSize = {
-        width: canvas.size.width / penDiameter,
-        height: canvas.size.height / penDiameter
+        width: canvas.size.width / realPenDiameter,
+        height: canvas.size.height / realPenDiameter
     };
 
     const getMostCommonColor = function (lines) {
@@ -83,10 +85,10 @@ export default function (canvas, toolbar) {
             commands.push(function () {
                 toolbar.setPenTool();
                 toolbar.setColor(line.color);
-                toolbar.setPenDiameter(penDiameter);
+                toolbar.setPenDiameter(nominalPenDiameter);
                 canvas.draw([
-                    { x: (line.startX + offset.x) * penDiameter, y: (line.y + offset.y) * penDiameter },
-                    { x: (line.endX + offset.x) * penDiameter, y: (line.y + offset.y) * penDiameter }
+                    { x: (line.startX + offset.x) * realPenDiameter, y: (line.y + offset.y) * realPenDiameter },
+                    { x: (line.endX + offset.x) * realPenDiameter, y: (line.y + offset.y) * realPenDiameter }
                 ]);
             });
         }
