@@ -25,7 +25,8 @@ export default function (domHelper) {
         getColors: () => colors,
         setColor: color => {
             let rgbString = toRgbString(color);
-            colorElementsLookup.get(rgbString).click();
+            let colorElement = colorElementsLookup.get(rgbString);
+            colorElement.dispatchEvent(new PointerEvent("pointerdown"));
         },
         getPenDiameters: () => [4, 10, 20, 32, 40],
         setPenDiameter: diameter => { sizeElementsLookup[diameter].click(); },
