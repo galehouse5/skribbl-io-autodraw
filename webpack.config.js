@@ -3,5 +3,5 @@ module.exports = {
     //  Uncaught EvalError: Refused to evaluate a string as JavaScript because 'unsafe-eval' is not an
     //  allowed source of script in the following Content Security Policy directive: "script-src 'self'
     //  blob: filesystem: chrome-extension-resource:".
-    devtool: "none"
+    devtool: false
 };
