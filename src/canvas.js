@@ -12,6 +12,7 @@ export default function (canvasElement) {
 
     let createMouseEvent = function (name, coords) {
         return new PointerEvent(name, {
+            pointerId: 1,
             pointerType: "mouse",
             bubbles: true,
             clientX: coords.x,
