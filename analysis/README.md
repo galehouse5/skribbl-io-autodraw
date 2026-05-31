@@ -17,12 +17,31 @@ candidate algorithm:
 
 ## Algorithms compared
 
-- **current** — scan-line runs, background pre-filled, shuffled then long-first
-  (mirrors `src/artist.js`).
-- **polyline** — one continuous snake stroke per connected color region, biggest
-  region first (~1 command per region).
+- **current** — scan-line runs, one 2-point stroke per run (the pre-polyline
+  `src/artist.js`).
+- **shipped** — faithful port of the *current* `src/artist.js` polyline chaining:
+  same-color runs are chained into one stroke only when the next-row run has an
+  end inside the current run's x-span, else the pen lifts. This is the real,
+  achievable command count today.
+- **polyline** — idealized one continuous snake stroke per connected color region
+  (~1 command per region). The lower bound `shipped` is measured against.
 - **bucket** — painter's layering: per region (biggest first) trace the outline,
   then flood-fill the interior (~2 commands per region).
+
+## Pen-lift headroom & attribution
+
+Two extra tables size the opportunity beyond what we ship:
+
+- **Headroom** — `shipped` vs `polyline` (ideal). The gap is the most any
+  region-chaining refinement could remove.
+- **Attribution** (`penLiftAttribution`) partitions that gap by which fix would
+  recover it: `terminal` (region genuinely ends — unavoidable, ≈ ideal count),
+  `connector` (region continues with same color directly below but the connector
+  rule is too strict on curved/widening edges — fixable pen-only via
+  run-splitting, no overdraw/ordering), and `overdraw` (region wraps around a
+  differently-colored hole — only the painter's/overdraw idea reconnects it).
+  Across the corpus the gap is `connector`-dominated (70–100%), so the cheaper
+  pen-only fix captures most of it; `overdraw` is the smaller 0–29% slice.
 
 ## Run
 

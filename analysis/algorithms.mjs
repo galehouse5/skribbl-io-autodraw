@@ -135,6 +135,151 @@ export function polylineSnake(q, regions = connectedRegions(q)) {
     return ops;
 }
 
+// Faithful port of the SHIPPED src/artist.js buildPolylines chaining: vertically
+// stacked same-color runs are chained into one stroke only when the next-row run
+// has an end inside the current run's x-span (safe axis-aligned connector);
+// otherwise the pen lifts. This is the real, achievable command count today -- the
+// gap between this and the idealized polylineSnake (1 stroke/region) is the prize
+// the overdraw/painter refinement could capture.
+export function polylineShipped(q) {
+    const W = q.width;
+    const bg = backgroundColor(q);
+    const { runs: allRuns } = horizontalRuns(q);
+
+    const runs = allRuns
+        .filter(r => r.color !== bg)
+        .map(r => ({ y: r.y, startX: r.startX, endX: r.endX, color: r.color, used: false }));
+
+    const byRow = new Map();
+    for (const r of runs) {
+        if (!byRow.has(r.y)) byRow.set(r.y, []);
+        byRow.get(r.y).push(r);
+    }
+    for (const row of byRow.values()) row.sort((a, b) => a.startX - b.startX);
+    runs.sort((a, b) => a.y - b.y || a.startX - b.startX);
+
+    const ops = [fillOp(q, bg)];
+
+    for (const start of runs) {
+        if (start.used) continue;
+
+        const pixels = [];
+        let points = 2;
+        const pushRun = r => { for (let x = r.startX; x <= r.endX; x++) pixels.push(r.y * W + x); };
+
+        let cur = start;
+        cur.used = true;
+        pushRun(cur);
+        let exitX = cur.endX;
+
+        while (true) {
+            const below = byRow.get(cur.y + 1);
+            if (!below) break;
+            let next = null, enterX = 0, bestDist = Infinity;
+            for (const cand of below) {
+                if (cand.used || cand.color !== cur.color) continue;
+                for (const end of [cand.startX, cand.endX]) {
+                    if (end < cur.startX || end > cur.endX) continue;
+                    const dist = Math.abs(end - exitX);
+                    if (dist < bestDist) { bestDist = dist; next = cand; enterX = end; }
+                }
+            }
+            if (!next) break;
+            const farX = enterX === next.startX ? next.endX : next.startX;
+            points += 3;
+            pushRun(next);
+            next.used = true;
+            cur = next;
+            exitX = farX;
+        }
+
+        ops.push({ commands: 1, points, color: start.color, pixels });
+    }
+
+    // Big strokes first (matches src/artist.js polyline ordering).
+    const head = ops.slice(0, 1);
+    const body = ops.slice(1).sort((a, b) => b.pixels.length - a.pixels.length);
+    return head.concat(body);
+}
+
+// Why does the shipped chaining lift the pen, and which fix would recover it?
+// Re-run the exact chaining; at each chain-end decide whether the run's connected
+// region actually CONTINUES below this row (region bottom row > current row):
+//   terminal   - region ends here: unavoidable (~one per region, == the ideal).
+//   connector  - region continues and the same color sits directly below in span,
+//                but no run-end lands in span: the connector rule is too strict
+//                (curved/widening edge). Recoverable by a pen-only smarter
+//                connector (run-splitting) -- no overdraw, no layer ordering.
+//   overdraw   - region continues but is blocked directly below by another color:
+//                a true wrap-around hole. Only the overdraw/painter idea (draw
+//                through it, let the covering region repaint it) reconnects this.
+// terminal ~= ideal stroke count; connector+overdraw ~= the gap, partitioned by
+// which refinement captures it.
+export function penLiftAttribution(q, regions = connectedRegions(q)) {
+    const W = q.width, H = q.height;
+    const bg = backgroundColor(q);
+
+    // region label + bottom-most row per pixel, for the "does it continue?" test.
+    const label = new Int32Array(W * H);
+    const maxRow = new Int32Array(regions.length);
+    for (const r of regions) {
+        for (const p of r.pixels) {
+            label[p] = r.id;
+            const y = (p / W) | 0;
+            if (y > maxRow[r.id]) maxRow[r.id] = y;
+        }
+    }
+
+    const { runs: allRuns } = horizontalRuns(q);
+    const runs = allRuns
+        .filter(r => r.color !== bg)
+        .map(r => ({ y: r.y, startX: r.startX, endX: r.endX, color: r.color, used: false }));
+    const byRow = new Map();
+    for (const r of runs) { if (!byRow.has(r.y)) byRow.set(r.y, []); byRow.get(r.y).push(r); }
+    for (const row of byRow.values()) row.sort((a, b) => a.startX - b.startX);
+    runs.sort((a, b) => a.y - b.y || a.startX - b.startX);
+
+    const tally = { terminal: 0, connector: 0, overdraw: 0, strokes: 0 };
+
+    for (const start of runs) {
+        if (start.used) continue;
+        tally.strokes++;
+        let cur = start;
+        cur.used = true;
+        let exitX = cur.endX;
+        while (true) {
+            const below = byRow.get(cur.y + 1);
+            let next = null, enterX = 0, bestDist = Infinity;
+            if (below) for (const cand of below) {
+                if (cand.used || cand.color !== cur.color) continue;
+                for (const end of [cand.startX, cand.endX]) {
+                    if (end < cur.startX || end > cur.endX) continue;
+                    const dist = Math.abs(end - exitX);
+                    if (dist < bestDist) { bestDist = dist; next = cand; enterX = end; }
+                }
+            }
+            if (next) {
+                const farX = enterX === next.startX ? next.endX : next.startX;
+                next.used = true; cur = next; exitX = farX;
+                continue;
+            }
+            // chain ends: does the region continue below this row at all?
+            const region = label[cur.y * W + cur.startX];
+            if (cur.y >= maxRow[region]) { tally.terminal++; break; }
+            // region continues lower: is the same color directly below in span?
+            let same = false;
+            if (cur.y + 1 < H) {
+                for (let x = cur.startX; x <= cur.endX; x++) {
+                    if (q.idx[(cur.y + 1) * W + x] === cur.color) { same = true; break; }
+                }
+            }
+            if (same) tally.connector++; else tally.overdraw++;
+            break;
+        }
+    }
+    return tally;
+}
+
 // Painter's bucket layering: for each region (biggest first) trace its outline,
 // then flood-fill its interior. Fidelity is split across the two ops so the curve
 // reflects the within-region refinement.

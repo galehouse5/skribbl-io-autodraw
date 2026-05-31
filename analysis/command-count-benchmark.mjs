@@ -9,8 +9,8 @@ import fs from "fs";
 import path from "path";
 import { createQuantizer } from "./quantize.mjs";
 import {
-    currentScanline, polylineSnake, bucketPainter, connectedRegions,
-    horizontalRuns, simulate, commandsToFidelity,
+    currentScanline, polylineSnake, polylineShipped, bucketPainter, connectedRegions,
+    horizontalRuns, simulate, commandsToFidelity, penLiftAttribution,
 } from "./algorithms.mjs";
 import {
     decode, fitScale, syntheticImages, writeIndexedPNG, FIT_BOX,
@@ -23,6 +23,7 @@ const quantizer = createQuantizer();
 
 const APPROACHES = [
     ["current", currentScanline],
+    ["shipped", polylineShipped],
     ["polyline", polylineSnake],
     ["bucket", bucketPainter],
 ];
@@ -100,14 +101,42 @@ for (const [name, raw] of Object.entries(images)) {
 
 // Compact comparison table (commands), normalized to current.
 console.log("\n\n# Command-count summary (relative to current scan-line)\n");
-console.log("image           current   polyline   bucket    | polyline×  bucket×");
+console.log("image           current   shipped   polyline   bucket    | shipped×  polyline×  bucket×");
 const byImage = {};
 for (const r of rows) (byImage[r.image] ||= {})[r.approach] = r;
 for (const [img, a] of Object.entries(byImage)) {
-    const cur = a.current.commands, poly = a.polyline.commands, buc = a.bucket.commands;
+    const cur = a.current.commands, ship = a.shipped.commands, poly = a.polyline.commands, buc = a.bucket.commands;
     console.log(
-        `${img.padEnd(14)} ${String(cur).padStart(7)} ${String(poly).padStart(10)} ` +
-        `${String(buc).padStart(8)}    | ${pct(poly, cur).padStart(7)}  ${pct(buc, cur).padStart(7)}`);
+        `${img.padEnd(14)} ${String(cur).padStart(7)} ${String(ship).padStart(9)} ${String(poly).padStart(10)} ` +
+        `${String(buc).padStart(8)}    | ${pct(ship, cur).padStart(7)}  ${pct(poly, cur).padStart(8)}  ${pct(buc, cur).padStart(7)}`);
+}
+
+// The prize: gap between the shipped chaining (real pen-lifts) and the idealized
+// 1-stroke-per-region polyline. This is the most the overdraw/painter refinement
+// could remove; the capturable share is the subset whose holes are non-background.
+console.log("\n# Pen-lift headroom: shipped vs idealized 1-stroke-per-region\n");
+console.log("image           shipped   ideal    gap   gap/shipped");
+for (const [img, a] of Object.entries(byImage)) {
+    const ship = a.shipped.commands, ideal = a.polyline.commands;
+    const gap = ship - ideal;
+    console.log(
+        `${img.padEnd(14)} ${String(ship).padStart(7)} ${String(ideal).padStart(7)} ` +
+        `${String(gap).padStart(6)}   ${pct(gap, ship).padStart(7)}`);
+}
+
+// Attribution: of the pen-lifts the shipped chaining makes, why does each happen?
+// Tells us whether the headroom is a "hole" prize (overdraw/painter helps) or a
+// "connector" prize (cheaper pen-only run-splitting helps).
+console.log("\n# Pen-lift attribution (terminal=unavoidable; connector/overdraw=the gap)\n");
+console.log("image           strokes  terminal  connector  overdraw | gap  connector%  overdraw%");
+for (const [name, raw] of Object.entries(images)) {
+    const q = quantizer.quantize(fitScale(raw, FIT_BOX));
+    const t = penLiftAttribution(q);
+    const gap = t.connector + t.overdraw;
+    console.log(
+        `${name.padEnd(14)} ${String(t.strokes).padStart(7)} ${String(t.terminal).padStart(9)} ` +
+        `${String(t.connector).padStart(10)} ${String(t.overdraw).padStart(9)} | ${String(gap).padStart(4)}  ` +
+        `${pct(t.connector, gap).padStart(8)}  ${pct(t.overdraw, gap).padStart(8)}`);
 }
 
 console.log(`\nSnapshots + curves written to ${OUT}`);
