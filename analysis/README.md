@@ -63,24 +63,29 @@ empirically -- how skribbl actually captures synthesized multi-point strokes
 (the polyline truncation bug). With the extension loaded, in a game where you're
 the drawer (private room works), open DevTools (F12) and press **Ctrl+Shift+Y**.
 
-The suite (~30s, clears the canvas repeatedly; keep the tab focused) draws a
-20-row zigzag under each dispatch strategy and reads pixels back at per-row
-probe points, so results are counted, not eyeballed:
+The suite (~40s, clears the canvas repeatedly; keep the tab focused) draws a
+16-row zigzag under each dispatch strategy, then **diffs the canvas against its
+just-cleared state** and reports, per row, the fraction of its width that inked.
+Diffing is color-agnostic and position-robust (it replaced a fragile fixed-point
+dark-pixel probe that produced false negatives), and it distinguishes a fully
+rendered row from a partial sweep:
 
-- `baseline-2pt-strokes` — the pre-polyline behavior; control, expect 20/20.
+- `baseline-strokes-0ms` / `-16ms` — the pre-polyline per-run method (independent
+  2-point strokes), fast and spaced; control, expect all rows rendered.
 - `burst-shipped` — all moves in one synchronous burst (the shipped polyline
   dispatch); reproduces the truncation.
-- `burst-buttons1` — burst but with `buttons: 1`; isolates pointer-state vs timing.
-- `raf-1` / `raf-1-buttons1` — one pointermove per animation frame.
-- `raf-2/4/8/16/32` — k moves per frame: skribbl's points-per-frame budget.
+- `burst-buttons1` — burst with `buttons: 1`; isolates pointer-state vs timing.
+- `raf-1` / `raf-4` — moves paced by animation frame (refresh-rate dependent).
+- `paced-8ms` / `-16ms` / `-33ms` — moves paced by explicit timer, independent of
+  refresh rate. These are the real test of skribbl's capture rate.
 
-Output goes to the page's DevTools console: per-scenario progress lines, a
-`console.table` summary, and a single JSON blob (includes per-row hit bitmaps and
-immediate-vs-settled counts to catch draw-then-cleared effects) to copy back for
-analysis. Decision rule: if only `raf-1` variants reach 20/20, skribbl samples ~1
-point per frame and the polyline can't beat per-run strokes on wall-clock (revert
-is ready); if `raf-k` holds 20/20 for larger k, the polyline survives with paced
-dispatch at k points per frame.
+Output goes to the page's DevTools console: per-scenario progress lines (each with
+an ASCII row-map — `#` full, `:` partial, `.` none), a `console.table` summary, and
+a single JSON blob (per-row fill fractions, immediate vs settled, devicePixelRatio,
+css width) to copy back. Decision rule: if only the explicitly-paced scenarios reach
+full rendering, skribbl samples roughly one point per that interval and the polyline
+can't beat per-run strokes on wall-clock (revert is ready); if a fast pace holds,
+the polyline survives with paced dispatch.
 
 ## Caveats
 
