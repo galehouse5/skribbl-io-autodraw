@@ -78,100 +78,18 @@ export default function (canvas, toolbar) {
         return lines;
     };
 
-    // Chain vertically-stacked horizontal runs of the same color into continuous
-    // "snake" strokes so each connected region is drawn with far fewer pen
-    // gestures (one canvas.draw call) than the per-run scan-line approach.
-    //
-    // Correctness: a run is only chained to a run on the next row when one of that
-    // run's ends falls within the current run's x-span. The connector is then a
-    // horizontal move along the current run followed by a single-column vertical
-    // drop -- both segments stay inside the region, so no connector ever paints
-    // across a differently-colored hole. Every run is entered at an end and swept
-    // end-to-end, so coverage is exact. When no safe connector exists the stroke
-    // ends and the remaining runs start their own strokes (matching the old
-    // per-run behavior in the worst case).
-    const buildPolylines = function (lines) {
-        const runs = lines.map(l => ({
-            y: l.y, startX: l.startX, endX: l.endX, color: l.color, used: false
-        }));
-
-        const byRow = new Map();
-        for (const run of runs) {
-            if (!byRow.has(run.y)) byRow.set(run.y, []);
-            byRow.get(run.y).push(run);
-        }
-        for (const row of byRow.values()) row.sort((a, b) => a.startX - b.startX);
-
-        // Deterministic start order: top-to-bottom, left-to-right.
-        runs.sort((a, b) => a.y - b.y || a.startX - b.startX);
-
-        const polylines = [];
-
-        for (const start of runs) {
-            if (start.used) continue;
-
-            const points = [];
-            let pixels = 0;
-
-            let cur = start;
-            cur.used = true;
-            points.push({ x: cur.startX, y: cur.y }, { x: cur.endX, y: cur.y });
-            pixels += cur.endX - cur.startX + 1;
-            let exitX = cur.endX;
-
-            while (true) {
-                const below = byRow.get(cur.y + 1);
-                if (!below) break;
-
-                // Pick the unused same-color run below whose end (inside cur's
-                // x-span) is closest to where the pen currently sits.
-                let next = null, enterX = 0, bestDist = Infinity;
-                for (const candidate of below) {
-                    if (candidate.used || candidate.color !== cur.color) continue;
-                    for (const end of [candidate.startX, candidate.endX]) {
-                        if (end < cur.startX || end > cur.endX) continue;
-                        const dist = Math.abs(end - exitX);
-                        if (dist < bestDist) {
-                            bestDist = dist;
-                            next = candidate;
-                            enterX = end;
-                        }
-                    }
-                }
-                if (!next) break;
-
-                const farX = enterX === next.startX ? next.endX : next.startX;
-                points.push({ x: enterX, y: cur.y });   // slide along cur to the connector column
-                points.push({ x: enterX, y: next.y });  // single-column vertical drop into next
-                points.push({ x: farX, y: next.y });    // sweep next run end-to-end
-                pixels += next.endX - next.startX + 1;
-
-                next.used = true;
-                cur = next;
-                exitX = farX;
-            }
-
-            polylines.push({ color: start.color, points, pixels });
-        }
-
-        // Big regions first so the image fills in coarse-to-fine.
-        polylines.sort((a, b) => b.pixels - a.pixels);
-
-        return polylines;
-    };
-
-    const drawPolylines = function (polylines, offset) {
+    const drawLines = function (lines, offset) {
         const commands = [];
 
-        for (const polyline of polylines) {
+        for (const line of lines) {
             commands.push(function () {
                 toolbar.setPenTool();
-                toolbar.setColor(polyline.color);
+                toolbar.setColor(line.color);
                 toolbar.setPenDiameter(nominalPenDiameter);
-                canvas.draw(polyline.points.map(p => ({
-                    x: (p.x + offset.x) * realPenDiameter,
-                    y: (p.y + offset.y) * realPenDiameter
-                })));
+                canvas.draw([
+                    { x: (line.startX + offset.x) * realPenDiameter, y: (line.y + offset.y) * realPenDiameter },
+                    { x: (line.endX + offset.x) * realPenDiameter, y: (line.y + offset.y) * realPenDiameter }
+                ]);
             });
         }
 
@@ -193,13 +111,21 @@ export default function (canvas, toolbar) {
             const filteredLines = allLines
                 .filter(l => JSON.stringify(l.color) != JSON.stringify(mostCommonColor));
 
-            const polylines = buildPolylines(filteredLines);
+            const sortedLines = filteredLines
+                // Randomize drawing order so the overall image fills in evenly.
+                .sort(() => 0.5 - Math.random())
+                // Long and short lines take the same time to draw. Draw long ones first so the image fills in faster.
+                .sort((l1, l2) => {
+                    const length1 = l1.endX - l1.startX;
+                    const length2 = l2.endX - l2.startX;
+                    return length1 > length2 ? -1 : length1 == length2 ? 0 : /* length1 < length2 ? */ 1;
+                });
 
             let drawingOffset = {
                 x: (effectiveDrawingSize.width - scaledImage.width) / 2 + 0.5,
                 y: (effectiveDrawingSize.height - scaledImage.height) / 2 + 0.5
             };
-            commands = commands.concat(drawPolylines(polylines, drawingOffset));
+            commands = commands.concat(drawLines(sortedLines, drawingOffset));
 
             log(`${commands.length} commands generated.`);
             return commands;
