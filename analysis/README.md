@@ -56,6 +56,32 @@ Drop your own PNG/JPEG examples into `analysis/images/` and they're picked up
 automatically. Results print to stdout; fidelity curves (`*.csv`) and progressive
 snapshots (`*-<pct>.png`) are written to `analysis/out/` (gitignored).
 
+## In-game stroke-capture diagnostics
+
+The benchmark models command counts; `src/diagnostics.js` measures the other half
+empirically -- how skribbl actually captures synthesized multi-point strokes
+(the polyline truncation bug). With the extension loaded, in a game where you're
+the drawer (private room works), open DevTools (F12) and press **Ctrl+Shift+Y**.
+
+The suite (~30s, clears the canvas repeatedly; keep the tab focused) draws a
+20-row zigzag under each dispatch strategy and reads pixels back at per-row
+probe points, so results are counted, not eyeballed:
+
+- `baseline-2pt-strokes` — the pre-polyline behavior; control, expect 20/20.
+- `burst-shipped` — all moves in one synchronous burst (the shipped polyline
+  dispatch); reproduces the truncation.
+- `burst-buttons1` — burst but with `buttons: 1`; isolates pointer-state vs timing.
+- `raf-1` / `raf-1-buttons1` — one pointermove per animation frame.
+- `raf-2/4/8/16/32` — k moves per frame: skribbl's points-per-frame budget.
+
+Output goes to the page's DevTools console: per-scenario progress lines, a
+`console.table` summary, and a single JSON blob (includes per-row hit bitmaps and
+immediate-vs-settled counts to catch draw-then-cleared effects) to copy back for
+analysis. Decision rule: if only `raf-1` variants reach 20/20, skribbl samples ~1
+point per frame and the polyline can't beat per-run strokes on wall-clock (revert
+is ready); if `raf-k` holds 20/20 for larger k, the polyline survives with paced
+dispatch at k points per frame.
+
 ## Caveats
 
 - Bucket fills are simulated as ideal/watertight; real flood fill can leak through

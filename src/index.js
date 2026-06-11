@@ -7,6 +7,7 @@ import log from "./log";
 import processWithoutBlocking from "./non-blocking-processor";
 import listenForDragDropEvents from "./drag-drop-event-listener";
 import createDomHelper from "./dom-helper";
+import createDiagnostics from "./diagnostics";
 
 const domHelper = createDomHelper(document);
 const clearToolElement = domHelper.getClearToolElement();
@@ -69,3 +70,12 @@ const handleDrop = function (event) {
 
 listenForDragDropEvents(document, handleDragEnter, domHelper.hideCanvasOverlay, handleDrop);
 clearToolElement.addEventListener("click", stopDrawing);
+
+// Stroke-capture diagnostics (see src/diagnostics.js). Ctrl+Shift+Y while drawing.
+const diagnostics = createDiagnostics(domHelper.getCanvasElement(), toolbar);
+document.addEventListener("keydown", function (event) {
+    if (event.ctrlKey && event.shiftKey && event.code === "KeyY") {
+        event.preventDefault();
+        diagnostics.run();
+    }
+});
