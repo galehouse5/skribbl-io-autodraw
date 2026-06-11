@@ -115,6 +115,7 @@ export default function (canvasElement, toolbar) {
     };
 
     const results = [];
+    const sheets = []; // { name, imageData } settled canvas snapshots for the contact sheet
 
     const runScenario = async function (name, points, fn) {
         toolbar.clear();
@@ -129,7 +130,9 @@ export default function (canvasElement, toolbar) {
         await nextFrame();
         const immediate = measure(base, snapshot());
         await wait(1500);
-        const settled = measure(base, snapshot());
+        const settledImage = context.getImageData(0, 0, canvasElement.width, canvasElement.height);
+        const settled = measure(base, settledImage.data);
+        sheets.push({ name, imageData: settledImage });
 
         const rendered = settled.filter(f => f >= ROW_HIT_FRACTION).length;
         const partial = settled.filter(f => f > 0.02 && f < ROW_HIT_FRACTION).length;
@@ -143,6 +146,48 @@ export default function (canvasElement, toolbar) {
 
         const map = settled.map(f => f >= ROW_HIT_FRACTION ? "#" : f > 0.02 ? ":" : ".").join("");
         log(`diag ${name}: ${rendered}/${ROWS} rows (${partial} partial), mean fill ${(meanFill * 100) | 0}%, ${drawMs}ms  [${map}]`);
+    };
+
+    // Composite every scenario's settled canvas into one labeled PNG and download
+    // it, so the stroke SHAPE (which the row-fraction metric can't see) is
+    // reviewable. Crops to the active band to keep each tile legible.
+    const downloadContactSheet = function () {
+        const cols = 3, tileW = 360, tileH = 230, label = 22, gap = 8;
+        const cropX = X0 - 40, cropY = Y0 - 20, cropW = (X1 - X0) + 80, cropH = (ROWS - 1) * DY + 40;
+        const rows = Math.ceil(sheets.length / cols);
+        const sheet = document.createElement("canvas");
+        sheet.width = cols * tileW + (cols + 1) * gap;
+        sheet.height = rows * (tileH + label) + (rows + 1) * gap;
+        const sctx = sheet.getContext("2d");
+        sctx.fillStyle = "#222"; sctx.fillRect(0, 0, sheet.width, sheet.height);
+
+        const tmp = document.createElement("canvas");
+        tmp.width = canvasElement.width; tmp.height = canvasElement.height;
+        const tctx = tmp.getContext("2d");
+        const sx = canvasElement.width / LOGICAL.width, sy = canvasElement.height / LOGICAL.height;
+
+        sheets.forEach(function (s, i) {
+            tctx.putImageData(s.imageData, 0, 0);
+            const col = i % cols, row = (i / cols) | 0;
+            const x = gap + col * (tileW + gap), y = gap + row * (tileH + label + gap);
+            sctx.fillStyle = "#eee";
+            sctx.font = "14px monospace";
+            const r = results[i];
+            sctx.fillText(`${s.name}  ${r.rendered}/${r.rows} ${(r.meanFill * 100) | 0}%`, x, y + 15);
+            sctx.drawImage(tmp, cropX * sx, cropY * sy, cropW * sx, cropH * sy, x, y + label, tileW, tileH);
+        });
+
+        try {
+            const a = document.createElement("a");
+            a.href = sheet.toDataURL("image/png");
+            a.download = `skribbl-diagnostics-${Date.now()}.png`;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            log("Contact sheet downloaded (one PNG, all scenarios).");
+        } catch (error) {
+            log(`Couldn't save contact sheet: ${error.message}`);
+        }
     };
 
     let running = false;
@@ -194,7 +239,8 @@ export default function (canvasElement, toolbar) {
                         config: { ROWS, X0, X1, Y0, DY, PEN, ROW_HIT_FRACTION, DIFF },
                         results
                     }));
-                log("Diagnostics finished -- see the table, the [row-maps] above, and the JSON.");
+                downloadContactSheet();
+                log("Diagnostics finished -- see the table, the [row-maps], the JSON, and the downloaded PNG.");
             } catch (error) {
                 log(`Diagnostics failed: ${error.message}`);
                 console.error(error);
