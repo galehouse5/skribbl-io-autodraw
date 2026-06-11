@@ -87,6 +87,25 @@ full rendering, skribbl samples roughly one point per that interval and the poly
 can't beat per-run strokes on wall-clock (revert is ready); if a fast pace holds,
 the polyline survives with paced dispatch.
 
+## Multi-width stroke planner (shipped)
+
+`src/stroke-planner.mjs` is the production planner built on the measured cost
+model (a 2-point stroke costs one ~16ms sampling frame regardless of length or
+pen size). It covers region interiors with fat pens (40/20/10) and edges with
+the 4px pen at any of 12 angles, using an exact per-color distance transform for
+round-cap safety: centerlines are restricted so the stroke's capsule (segment +
+brush disc, caps included) provably stays inside its color region, with
+conservative margins both ways since the brush's true pixel footprint is
+uncalibrated (solid credit ~0.72x nominal radius -- the realPenDiameter ratio --
+plus a "likely" tier at nominal+0.25 that excuses crumb-yield seeds).
+Emission order is lazy-greedy via declining-threshold sweeps. Test fixtures:
+`node analysis/stroke-planner.test.mjs`.
+
+Measured vs the old per-run scanline (strokes; both need 16ms/stroke for
+reliability): icon128 67%, promo 64%, flag 22%, logo 63%, cartoon 72%,
+gradient 54%. Planning runs 0.1-0.9s on busy images but up to ~7s on large flat
+ones (main-thread; chunking it across frames is an open polish item).
+
 ## Caveats
 
 - Bucket fills are simulated as ideal/watertight; real flood fill can leak through

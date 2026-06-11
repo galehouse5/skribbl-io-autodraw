@@ -1,10 +1,15 @@
 import createColorPalette from "./color-palette";
-import { fitImage, fillImage } from "./image-helper";
+import { fitImage } from "./image-helper";
 import log from "./log";
+import { planStrokes } from "./stroke-planner.mjs";
 
-const nominalPenDiameter = 4;
-// Treat the pen like it's smaller to prevent blank horizontal lines.
+// Skribbl draws strokes with round caps; the smallest pen's reliable coverage
+// width is ~2.9 canvas px (hence the historical realPenDiameter), so the image
+// is planned on a grid of 1 image px = 2.9 canvas px.
 const realPenDiameter = 2.9;
+// Largest first: fat pens take region interiors, the 4px edge pen takes
+// boundaries and detail with the historical sub-pixel slop.
+const penDiameters = [40, 20, 10, 4];
 const scaleImage = fitImage;
 
 export default function (canvas, toolbar) {
@@ -14,86 +19,73 @@ export default function (canvas, toolbar) {
         height: canvas.size.height / realPenDiameter
     };
 
-    const getMostCommonColor = function (lines) {
-        const counts = {};
+    // Map every pixel to its palette color, as an index grid plus color table.
+    const quantize = function (image) {
+        const data = image.data;
+        const colorCache = {};
+        const colors = [];
+        const indexByKey = new Map();
+        const idx = new Int32Array(image.width * image.height);
 
-        for (const line of lines) {
-            const key = JSON.stringify(line.color);
-            counts[key] = (counts[key] || 0) + 1;
+        for (let p = 0, i = 0; p < idx.length; p++, i += 4) {
+            const color = colorPalette.getClosestColor(
+                { r: data[i + 0], g: data[i + 1], b: data[i + 2] }, colorCache);
+            const key = JSON.stringify(color);
+            let colorIndex = indexByKey.get(key);
+            if (colorIndex === undefined) {
+                colorIndex = colors.length;
+                colors.push(color);
+                indexByKey.set(key, colorIndex);
+            }
+            idx[p] = colorIndex;
         }
 
-        const mostCommon = Object.keys(counts)
-            .reduce((c1, c2) => counts[c1] > counts[c2] ? c1 : c2);
-        return JSON.parse(mostCommon);
+        return { idx, colors };
+    };
+
+    // Background = most common color by horizontal run count (the historical
+    // heuristic: cheap proxy for "the color that costs most to draw").
+    const getMostCommonColor = function (idx, width, height) {
+        const counts = new Map();
+        for (let y = 0; y < height; y++) {
+            let color = idx[y * width];
+            counts.set(color, (counts.get(color) || 0) + 1);
+            for (let x = 1; x < width; x++) {
+                const c = idx[y * width + x];
+                if (c !== color) {
+                    color = c;
+                    counts.set(color, (counts.get(color) || 0) + 1);
+                }
+            }
+        }
+        let best = 0, bestCount = -1;
+        for (const [color, count] of counts) {
+            if (count > bestCount) { best = color; bestCount = count; }
+        }
+        return best;
     };
 
     const fillCanvas = function (color) {
-        return [
-            function () {
-                toolbar.setFillTool();
-                toolbar.setColor(color);
-                canvas.draw([
-                    { x: 0, y: 0 },
-                    { x: 0, y: 0 }
-                ]);
-            }
-        ];
+        return function () {
+            toolbar.setFillTool();
+            toolbar.setColor(color);
+            canvas.draw([
+                { x: 0, y: 0 },
+                { x: 0, y: 0 }
+            ]);
+        };
     };
 
-    const extractLines = function (image) {
-        const data = image.data;
-        const colorCache = {};
-        const lines = [];
-
-        let lineStartX = 0;
-        let lineColor = null;
-        let i = 0;
-
-        for (let y = 0; y < image.height; y++) {
-            for (let x = 0; x < image.width; x++) {
-                const pixelColor = { r: data[i + 0], g: data[i + 1], b: data[i + 2] };
-                const paletteColor = colorPalette.getClosestColor(pixelColor, colorCache);
-
-                if (lineColor == null) {
-                    lineColor = paletteColor;
-                    continue;
-                }
-
-                if (lineColor != paletteColor) {
-                    lines.push({ y: y, startX: lineStartX, endX: x - 1, color: lineColor });
-                    lineStartX = x;
-                    lineColor = paletteColor;
-                }
-
-                i += 4;
-            }
-
-            lines.push({ y: y, startX: lineStartX, endX: image.width - 1, color: lineColor });
-            lineStartX = 0;
-            lineColor = null;
-
-            i += 4;
-        }
-
-        return lines;
-    };
-
-    const drawLines = function (lines, offset) {
-        const commands = [];
-
-        for (const line of lines) {
-            commands.push(function () {
-                toolbar.setPenTool();
-                toolbar.setColor(line.color);
-                toolbar.setPenDiameter(nominalPenDiameter);
-                canvas.draw([
-                    { x: (line.startX + offset.x) * realPenDiameter, y: (line.y + offset.y) * realPenDiameter },
-                    { x: (line.endX + offset.x) * realPenDiameter, y: (line.y + offset.y) * realPenDiameter }
-                ]);
-            });
-        }
-
-        return commands;
+    const drawStroke = function (stroke, color, offset) {
+        return function () {
+            toolbar.setPenTool();
+            toolbar.setColor(color);
+            toolbar.setPenDiameter(stroke.diameter);
+            canvas.draw([
+                { x: (stroke.x1 + offset.x) * realPenDiameter, y: (stroke.y1 + offset.y) * realPenDiameter },
+                { x: (stroke.x2 + offset.x) * realPenDiameter, y: (stroke.y2 + offset.y) * realPenDiameter }
+            ]);
+        };
     };
 
     return {
@@ -101,33 +93,40 @@ export default function (canvas, toolbar) {
             const scaledImage = scaleImage(effectiveDrawingSize, image);
 
             log("Generating draw commands...");
-            let commands = [];
+            const { idx, colors } = quantize(scaledImage);
+            const background = getMostCommonColor(idx, scaledImage.width, scaledImage.height);
 
-            const allLines = extractLines(scaledImage);
-            const mostCommonColor = getMostCommonColor(allLines);
-            commands = commands.concat(fillCanvas(mostCommonColor));
+            const { strokes } = planStrokes({
+                width: scaledImage.width,
+                height: scaledImage.height,
+                idx,
+                background,
+                pens: penDiameters.map(d => ({
+                    diameter: d,
+                    radiusImg: d / realPenDiameter / 2,
+                    edge: d === penDiameters[penDiameters.length - 1]
+                }))
+            });
 
-            // Don't need to draw lines that match the fill color.
-            const filteredLines = allLines
-                .filter(l => JSON.stringify(l.color) != JSON.stringify(mostCommonColor));
+            // Fat pens first, biggest yield first: the image comes into focus
+            // coarse-to-fine.
+            strokes.sort((s1, s2) => s2.diameter - s1.diameter || s2.covers - s1.covers);
 
-            const sortedLines = filteredLines
-                // Randomize drawing order so the overall image fills in evenly.
-                .sort(() => 0.5 - Math.random())
-                // Long and short lines take the same time to draw. Draw long ones first so the image fills in faster.
-                .sort((l1, l2) => {
-                    const length1 = l1.endX - l1.startX;
-                    const length2 = l2.endX - l2.startX;
-                    return length1 > length2 ? -1 : length1 == length2 ? 0 : /* length1 < length2 ? */ 1;
-                });
-
-            let drawingOffset = {
+            const drawingOffset = {
                 x: (effectiveDrawingSize.width - scaledImage.width) / 2 + 0.5,
                 y: (effectiveDrawingSize.height - scaledImage.height) / 2 + 0.5
             };
-            commands = commands.concat(drawLines(sortedLines, drawingOffset));
 
-            log(`${commands.length} commands generated.`);
+            const commands = [fillCanvas(colors[background])]
+                .concat(strokes.map(s => drawStroke(s, colors[s.color], drawingOffset)));
+
+            const byPen = {};
+            for (const s of strokes) byPen[s.diameter] = (byPen[s.diameter] || 0) + 1;
+            const breakdown = penDiameters
+                .filter(d => byPen[d])
+                .map(d => `${byPen[d]}x pen ${d}`)
+                .join(", ");
+            log(`${commands.length} commands generated (fill + ${breakdown}).`);
             return commands;
         }
     };
